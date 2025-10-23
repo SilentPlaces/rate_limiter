@@ -80,6 +80,7 @@ func New(ctx context.Context, log ports.Logger, cfg *config.Config) (*Container,
 	luaFiles, err := loadLuaFiles([]string{
 		fmt.Sprintf("scripts/lua/%s.lua", domainConfig.AlgorithmFixedWindow),
 		fmt.Sprintf("scripts/lua/%s.lua", domainConfig.AlgorithmTokenBucket),
+		fmt.Sprintf("scripts/lua/%s.lua", domainConfig.AlgorithmSlidingWindow),
 	}, log)
 	if err != nil {
 		_ = rc.Close()
@@ -91,12 +92,14 @@ func New(ctx context.Context, log ports.Logger, cfg *config.Config) (*Container,
 	registry := domainLimiter.NewRegistry()
 	_ = registry.Register(domainConfig.AlgorithmFixedWindow, limiter.FixedWindowLimiterFactory)
 	_ = registry.Register(domainConfig.AlgorithmTokenBucket, limiter.TokenBucketLimiterFactory)
+	_ = registry.Register(domainConfig.AlgorithmSlidingWindow, limiter.SlidingWindowLimiterFactory)
 
 	// Load limiter algorithms
 	limiters := make(map[string]ports.RateLimiter)
 	for algo, script := range map[string]string{
-		domainConfig.AlgorithmFixedWindow: fmt.Sprintf("scripts/lua/%s.lua", domainConfig.AlgorithmFixedWindow),
-		domainConfig.AlgorithmTokenBucket: fmt.Sprintf("scripts/lua/%s.lua", domainConfig.AlgorithmTokenBucket),
+		domainConfig.AlgorithmFixedWindow:   fmt.Sprintf("scripts/lua/%s.lua", domainConfig.AlgorithmFixedWindow),
+		domainConfig.AlgorithmTokenBucket:   fmt.Sprintf("scripts/lua/%s.lua", domainConfig.AlgorithmTokenBucket),
+		domainConfig.AlgorithmSlidingWindow: fmt.Sprintf("scripts/lua/%s.lua", domainConfig.AlgorithmSlidingWindow),
 	} {
 		// Create instance of each registered algorithm
 		limiterInstance, err := registry.Create(algo, redisAdapter, luaFiles[script])

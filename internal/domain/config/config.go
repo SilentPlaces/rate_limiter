@@ -1,11 +1,16 @@
 package config
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/SilentPlaces/rate_limiter/internal/domain/errors"
+)
 
 // Algorithm type constants
 const (
-	AlgorithmFixedWindow = "fixed_window"
-	AlgorithmTokenBucket = "token_bucket"
+	AlgorithmFixedWindow   = "fixed_window"
+	AlgorithmTokenBucket   = "token_bucket"
+	AlgorithmSlidingWindow = "sliding_window"
 )
 
 type Config struct {
@@ -33,13 +38,19 @@ func (f FixedWindowConfig) AlgorithmName() string {
 
 func (f FixedWindowConfig) Validate() error {
 	if f.Limit <= 0 {
-		return fmt.Errorf("limit must be positive, got %d", f.Limit)
+		return errors.NewRateLimiterError(errors.ErrInvalidConfig.Code,
+			"limit must be positive",
+			fmt.Errorf("limit must be positive, got %d", f.Limit))
 	}
 	if f.Window <= 0 {
-		return fmt.Errorf("window must be positive, got %d", f.Window)
+		return errors.NewRateLimiterError(errors.ErrInvalidConfig.Code,
+			"window must be positive",
+			fmt.Errorf("window must be positive, got %d", f.Window))
 	}
 	if f.Window > 86400 {
-		return fmt.Errorf("window too large: %d seconds (max 24 hours)", f.Window)
+		return errors.NewRateLimiterError(errors.ErrInvalidConfig.Code,
+			"window too large",
+			fmt.Errorf("window too large: %d seconds (max 24 hours)", f.Window))
 	}
 	return nil
 }
@@ -56,16 +67,52 @@ func (t TokenBucketConfig) AlgorithmName() string {
 
 func (t TokenBucketConfig) Validate() error {
 	if t.Capacity <= 0 {
-		return fmt.Errorf("capacity must be positive, got %d", t.Capacity)
+		return errors.NewRateLimiterError(errors.ErrInvalidConfig.Code,
+			"capacity must be positive",
+			fmt.Errorf("capacity must be positive, got %d", t.Capacity))
 	}
 	if t.RefillRate <= 0 {
-		return fmt.Errorf("refill_rate must be positive, got %d", t.RefillRate)
+		return errors.NewRateLimiterError(errors.ErrInvalidConfig.Code,
+			"refill_rate must be positive",
+			fmt.Errorf("refill_rate must be positive, got %d", t.RefillRate))
 	}
 	if t.BucketTTL <= 0 {
-		return fmt.Errorf("bucket_ttl must be positive, got %d", t.BucketTTL)
+		return errors.NewRateLimiterError(errors.ErrInvalidConfig.Code,
+			"bucket_ttl must be positive",
+			fmt.Errorf("bucket_ttl must be positive, got %d", t.BucketTTL))
 	}
 	if t.BucketTTL > 86400 {
-		return fmt.Errorf("bucket_ttl too large: %d seconds (max 24 hours)", t.BucketTTL)
+		return errors.NewRateLimiterError(errors.ErrInvalidConfig.Code,
+			"bucket_ttl too large",
+			fmt.Errorf("bucket_ttl too large: %d seconds (max 24 hours)", t.BucketTTL))
+	}
+	return nil
+}
+
+type SlidingWindowConfig struct {
+	Limit  int
+	Window int
+}
+
+func (s SlidingWindowConfig) AlgorithmName() string {
+	return AlgorithmSlidingWindow
+}
+
+func (s SlidingWindowConfig) Validate() error {
+	if s.Limit <= 0 {
+		return errors.NewRateLimiterError(errors.ErrInvalidConfig.Code,
+			"limit must be positive",
+			fmt.Errorf("limit must be positive, got %d", s.Limit))
+	}
+	if s.Window <= 0 {
+		return errors.NewRateLimiterError(errors.ErrInvalidConfig.Code,
+			"window must be positive",
+			fmt.Errorf("window must be positive, got %d", s.Window))
+	}
+	if s.Window > 86400 {
+		return errors.NewRateLimiterError(errors.ErrInvalidConfig.Code,
+			"window too large",
+			fmt.Errorf("window too large: %d seconds (max 24 hours)", s.Window))
 	}
 	return nil
 }

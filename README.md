@@ -25,7 +25,7 @@ This rate limiter acts as a reverse proxy that enforces request rate limits befo
 
 - ✅ **Fixed Window** - Simple, efficient time-window based limiting
 - ✅ **Token Bucket** - Smooth rate limiting with burst support
-- 🔜 **Sliding Window** - More accurate rate limiting (planned)
+- ✅ **Sliding Window** - More accurate rate limiting (planned)
 - 🔜 **Leaky Bucket** - Constant request rate (planned)
 
 ### Architecture & Design
@@ -545,7 +545,7 @@ MONITOR
 
 ### Areas for Contribution
 
-- 🔧 Implement new rate limiting algorithms (Sliding Window, Leaky Bucket)
+- 🔧 Implement new rate limiting algorithms (Leaky Bucket)
 - 📊 Add Prometheus metrics and monitoring
 - ✅ Expand test coverage
 - 🔐 Add authentication/API key based rate limiting
@@ -588,7 +588,7 @@ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
 - [x] Clean architecture refactoring
 - [x] Docker deployment
 - [x] Algorithm type constants for maintainability
-- [ ] Sliding Window algorithm
+- [x] Sliding Window algorithm
 - [ ] Leaky Bucket algorithm
 - [ ] Prometheus metrics and monitoring
 - [ ] Comprehensive test suite (unit + integration)
