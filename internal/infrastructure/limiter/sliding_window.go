@@ -8,6 +8,7 @@ import (
 	"github.com/SilentPlaces/rate_limiter/internal/application/ports"
 	"github.com/SilentPlaces/rate_limiter/internal/domain/config"
 	"github.com/SilentPlaces/rate_limiter/internal/domain/errors"
+	"github.com/google/uuid"
 )
 
 type SlidingWindowLimiter struct {
@@ -31,11 +32,13 @@ func (s *SlidingWindowLimiter) Allow(ctx context.Context, key string, cfg config
 			fmt.Errorf("invalid config type for SlidingWindowLimiter, got %T", cfg))
 	}
 
-	now := time.Now().Unix()
+	now := time.Now().UnixMilli()
+	requestID := uuid.New().String()
+	windowMs := slidingConfig.Window * 1000
 
 	res, err := s.score.Eval(ctx,
 		s.luaScript,
-		[]string{key}, []interface{}{slidingConfig.Window, slidingConfig.Limit, now},
+		[]string{key}, []interface{}{windowMs, slidingConfig.Limit, now, requestID},
 	)
 	if err != nil {
 		return false, err

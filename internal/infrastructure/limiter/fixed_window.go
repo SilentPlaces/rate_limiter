@@ -27,7 +27,7 @@ func FixedWindowLimiterFactory(score ports.LimiterScore, luaScript string) ports
 func (f *FixedWindowLimiter) Allow(ctx context.Context, key string, cfg config.AlgorithmConfig) (bool, error) {
 	fixedCfg, ok := cfg.(config.FixedWindowConfig)
 	if !ok {
-		return false, fmt.Errorf("invalid config type for FixedWindowLimiter")
+		return false, fmt.Errorf("invalid config type for FixedWindowLimiter, got %T", cfg)
 	}
 
 	res, err := f.score.Eval(ctx, f.luaScript, []string{key}, []interface{}{fixedCfg.Window, fixedCfg.Limit})

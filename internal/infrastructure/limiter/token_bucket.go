@@ -28,7 +28,7 @@ func TokenBucketLimiterFactory(score ports.LimiterScore, luaScript string) ports
 func (t *TokenBucketLimiter) Allow(ctx context.Context, key string, cfg config.AlgorithmConfig) (bool, error) {
 	tokenCfg, ok := cfg.(config.TokenBucketConfig)
 	if !ok {
-		return false, fmt.Errorf("invalid config type for TokenBucketLimiter")
+		return false, fmt.Errorf("invalid config type for TokenBucketLimiter, got %T", cfg)
 	}
 
 	now := time.Now().Unix()
