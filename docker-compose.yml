@@ -58,8 +58,8 @@ services:
               },
               "token-bucket-test": {
                 "algorithm": "token_bucket",
-                "capacity": 100,
-                "refill_rate": 10,
+                "capacity": 7,
+                "refill_rate": 1,
                 "bucket_ttl": 300
               },
               "sliding-window-test": {

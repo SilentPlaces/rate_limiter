@@ -18,11 +18,18 @@ local refill_amount = time_passed * refill_rate
 tokens = math.min(capacity, tokens + refill_amount)
 last_refill = now
 
+-- Calculate when we'll have tokens_to_consume available again
+local time_until_refill = 0
+if tokens < tokens_to_consume then
+    time_until_refill = math.ceil((tokens_to_consume - tokens) / refill_rate)
+end
+local reset_time = now + time_until_refill
+
 -- Check if enough tokens are available
 if tokens < tokens_to_consume then
 	redis.call('HSET', key, 'tokens', tokens, 'last_refill', last_refill)
 	redis.call('EXPIRE', key, bucket_ttl)
-	return {0, tokens}
+	return {0, math.floor(tokens), 0, reset_time}
 end
 
 -- Consume tokens and save state
@@ -30,4 +37,4 @@ tokens = tokens - tokens_to_consume
 redis.call('HSET', key, 'tokens', tokens, 'last_refill', last_refill)
 redis.call('EXPIRE', key, bucket_ttl)
 
-return {1, tokens}
+return {1, math.floor(tokens), math.floor(tokens), 0}

@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/SilentPlaces/rate_limiter/internal/application/ports"
-	domainConfig "github.com/SilentPlaces/rate_limiter/internal/domain/config"
 	"github.com/SilentPlaces/rate_limiter/internal/domain/errors"
 	"github.com/SilentPlaces/rate_limiter/internal/domain/limiter"
 )
@@ -79,36 +78,12 @@ func (l *LimiterService) AllowWithInfo(ctx context.Context, ip, route string) (p
 		ports.Field{Key: "ip", Val: ip},
 		ports.Field{Key: "algorithm", Val: routeConfig.Algorithm})
 
-	allowed, err := limiter.Allow(ctx, key, routeConfig.Config)
+	info, err := limiter.Allow(ctx, key, routeConfig.Config)
 	if err != nil {
 		return ports.RateLimitInfo{}, err
 	}
 
-	limit := l.extractLimit(routeConfig.Config)
-	remaining := 0
-	if allowed {
-		remaining = 1
-	}
-
-	return ports.RateLimitInfo{
-		Allowed:   allowed,
-		Limit:     limit,
-		Remaining: remaining,
-		ResetTime: 0,
-	}, nil
-}
-
-func (l *LimiterService) extractLimit(cfg domainConfig.AlgorithmConfig) int {
-	switch c := cfg.(type) {
-	case domainConfig.FixedWindowConfig:
-		return c.Limit
-	case domainConfig.TokenBucketConfig:
-		return c.Capacity
-	case domainConfig.SlidingWindowConfig:
-		return c.Limit
-	default:
-		return -1
-	}
+	return info, nil
 }
 
 func (l *LimiterService) buildRateLimitKey(algorithm, route, ip string) string {

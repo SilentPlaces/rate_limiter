@@ -7,5 +7,5 @@ import (
 )
 
 type RateLimiter interface {
-	Allow(ctx context.Context, key string, cfg config.AlgorithmConfig) (bool, error)
+	Allow(ctx context.Context, key string, cfg config.AlgorithmConfig) (RateLimitInfo, error)
 }
