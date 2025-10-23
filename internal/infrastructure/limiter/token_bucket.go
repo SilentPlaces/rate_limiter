@@ -25,10 +25,10 @@ func TokenBucketLimiterFactory(score ports.LimiterScore, luaScript string) ports
 	return NewTokenBucketLimiter(score, luaScript)
 }
 
-func (t *TokenBucketLimiter) Allow(ctx context.Context, key string, cfg config.AlgorithmConfig) (bool, error) {
+func (t *TokenBucketLimiter) Allow(ctx context.Context, key string, cfg config.AlgorithmConfig) (ports.RateLimitInfo, error) {
 	tokenCfg, ok := cfg.(config.TokenBucketConfig)
 	if !ok {
-		return false, fmt.Errorf("invalid config type for TokenBucketLimiter, got %T", cfg)
+		return ports.RateLimitInfo{}, fmt.Errorf("invalid config type for TokenBucketLimiter, got %T", cfg)
 	}
 
 	now := time.Now().Unix()
@@ -42,14 +42,22 @@ func (t *TokenBucketLimiter) Allow(ctx context.Context, key string, cfg config.A
 		tokenCfg.BucketTTL,
 	})
 	if err != nil {
-		return false, err
+		return ports.RateLimitInfo{}, err
 	}
 
 	result, ok := res.([]interface{})
-	if !ok || len(result) < 1 {
-		return false, fmt.Errorf("unexpected lua script response")
+	if !ok || len(result) < 4 {
+		return ports.RateLimitInfo{}, fmt.Errorf("unexpected lua script response")
 	}
 
-	allowed, ok := result[0].(int64)
-	return ok && allowed == 1, nil
+	allowed, _ := result[0].(int64)
+	remaining, _ := result[2].(int64)
+	resetTime, _ := result[3].(int64)
+
+	return ports.RateLimitInfo{
+		Allowed:   allowed == 1,
+		Limit:     tokenCfg.Capacity,
+		Remaining: int(remaining),
+		ResetTime: resetTime,
+	}, nil
 }

@@ -24,10 +24,10 @@ func SlidingWindowLimiterFactory(score ports.LimiterScore, luaScript string) por
 	return NewSlidingWindowLimiter(score, luaScript)
 }
 
-func (s *SlidingWindowLimiter) Allow(ctx context.Context, key string, cfg config.AlgorithmConfig) (bool, error) {
+func (s *SlidingWindowLimiter) Allow(ctx context.Context, key string, cfg config.AlgorithmConfig) (ports.RateLimitInfo, error) {
 	slidingConfig, ok := cfg.(config.SlidingWindowConfig)
 	if !ok {
-		return false, errors.NewRateLimiterError(errors.ErrInvalidConfig.Code,
+		return ports.RateLimitInfo{}, errors.NewRateLimiterError(errors.ErrInvalidConfig.Code,
 			"invalid config type for SlidingWindowLimiter",
 			fmt.Errorf("invalid config type for SlidingWindowLimiter, got %T", cfg))
 	}
@@ -41,12 +41,21 @@ func (s *SlidingWindowLimiter) Allow(ctx context.Context, key string, cfg config
 		[]string{key}, []interface{}{windowMs, slidingConfig.Limit, now, requestID},
 	)
 	if err != nil {
-		return false, err
+		return ports.RateLimitInfo{}, err
 	}
 	result, ok := res.([]interface{})
-	if !ok || len(result) < 1 {
-		return false, fmt.Errorf("unexpected lua script response")
+	if !ok || len(result) < 4 {
+		return ports.RateLimitInfo{}, fmt.Errorf("unexpected lua script response")
 	}
-	allowed, ok := result[0].(int64)
-	return ok && allowed == 1, nil
+
+	allowed, _ := result[0].(int64)
+	remaining, _ := result[2].(int64)
+	resetTime, _ := result[3].(int64)
+
+	return ports.RateLimitInfo{
+		Allowed:   allowed == 1,
+		Limit:     slidingConfig.Limit,
+		Remaining: int(remaining),
+		ResetTime: resetTime,
+	}, nil
 }
