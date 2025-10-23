@@ -3,6 +3,7 @@ module github.com/SilentPlaces/rate_limiter
 go 1.23.0
 
 require (
+	github.com/google/uuid v1.6.0
 	github.com/hashicorp/consul/api v1.13.0
 	github.com/knadh/koanf v1.5.0
 	github.com/redis/go-redis/v9 v9.14.1

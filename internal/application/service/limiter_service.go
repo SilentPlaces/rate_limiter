@@ -104,6 +104,8 @@ func (l *LimiterService) extractLimit(cfg domainConfig.AlgorithmConfig) int {
 		return c.Limit
 	case domainConfig.TokenBucketConfig:
 		return c.Capacity
+	case domainConfig.SlidingWindowConfig:
+		return c.Limit
 	default:
 		return -1
 	}
