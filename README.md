@@ -25,7 +25,7 @@ This rate limiter acts as a reverse proxy that enforces request rate limits befo
 
 - ✅ **Fixed Window** - Simple, efficient time-window based limiting
 - ✅ **Token Bucket** - Smooth rate limiting with burst support
-- ✅ **Sliding Window** - More accurate rate limiting (planned)
+- ✅ **Sliding Window** - More accurate rate limiting
 - 🔜 **Leaky Bucket** - Constant request rate (planned)
 
 ### Architecture & Design
