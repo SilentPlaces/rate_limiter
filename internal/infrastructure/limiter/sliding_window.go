@@ -12,16 +12,16 @@ import (
 )
 
 type SlidingWindowLimiter struct {
-	score     ports.LimiterScore
-	luaScript string
+	score      ports.LimiterScore
+	scriptSHA1 string
 }
 
-func NewSlidingWindowLimiter(score ports.LimiterScore, luaScript string) ports.RateLimiter {
-	return &SlidingWindowLimiter{luaScript: luaScript, score: score}
+func NewSlidingWindowLimiter(score ports.LimiterScore, scriptSHA1 string) ports.RateLimiter {
+	return &SlidingWindowLimiter{scriptSHA1: scriptSHA1, score: score}
 }
 
-func SlidingWindowLimiterFactory(score ports.LimiterScore, luaScript string) ports.RateLimiter {
-	return NewSlidingWindowLimiter(score, luaScript)
+func SlidingWindowLimiterFactory(score ports.LimiterScore, scriptSHA1 string) ports.RateLimiter {
+	return NewSlidingWindowLimiter(score, scriptSHA1)
 }
 
 func (s *SlidingWindowLimiter) Allow(ctx context.Context, key string, cfg config.AlgorithmConfig) (ports.RateLimitInfo, error) {
@@ -36,8 +36,8 @@ func (s *SlidingWindowLimiter) Allow(ctx context.Context, key string, cfg config
 	requestID := uuid.New().String()
 	windowMs := slidingConfig.Window * 1000
 
-	res, err := s.score.Eval(ctx,
-		s.luaScript,
+	res, err := s.score.EvalSha(ctx,
+		s.scriptSHA1,
 		[]string{key}, []interface{}{windowMs, slidingConfig.Limit, now, requestID},
 	)
 	if err != nil {

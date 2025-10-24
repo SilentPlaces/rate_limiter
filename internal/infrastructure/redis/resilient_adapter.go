@@ -62,3 +62,25 @@ func (r *ResilientRedisAdapter) Eval(ctx context.Context, script string, keys []
 	}
 	return result, nil
 }
+
+func (r *ResilientRedisAdapter) ScriptLoad(ctx context.Context, script string) (string, error) {
+	result, err := r.circuitBreaker.Execute(ctx, func(ctx context.Context) (interface{}, error) {
+		return r.adapter.ScriptLoad(ctx, script)
+	})
+
+	if err != nil {
+		return "", err
+	}
+	return result.(string), nil
+}
+
+func (r *ResilientRedisAdapter) EvalSha(ctx context.Context, sha1 string, keys []string, args ...[]interface{}) (interface{}, error) {
+	result, err := r.circuitBreaker.Execute(ctx, func(ctx context.Context) (interface{}, error) {
+		return r.adapter.EvalSha(ctx, sha1, keys, args...)
+	})
+
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}

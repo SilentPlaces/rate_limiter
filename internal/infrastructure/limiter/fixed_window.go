@@ -10,19 +10,19 @@ import (
 )
 
 type FixedWindowLimiter struct {
-	score     ports.LimiterScore
-	luaScript string
+	score      ports.LimiterScore
+	scriptSHA1 string
 }
 
-func NewFixedWindowLimiter(score ports.LimiterScore, luaScript string) ports.RateLimiter {
+func NewFixedWindowLimiter(score ports.LimiterScore, scriptSHA1 string) ports.RateLimiter {
 	return &FixedWindowLimiter{
-		score:     score,
-		luaScript: luaScript,
+		score:      score,
+		scriptSHA1: scriptSHA1,
 	}
 }
 
-func FixedWindowLimiterFactory(score ports.LimiterScore, luaScript string) ports.RateLimiter {
-	return NewFixedWindowLimiter(score, luaScript)
+func FixedWindowLimiterFactory(score ports.LimiterScore, scriptSHA1 string) ports.RateLimiter {
+	return NewFixedWindowLimiter(score, scriptSHA1)
 }
 
 func (f *FixedWindowLimiter) Allow(ctx context.Context, key string, cfg config.AlgorithmConfig) (ports.RateLimitInfo, error) {
@@ -31,7 +31,7 @@ func (f *FixedWindowLimiter) Allow(ctx context.Context, key string, cfg config.A
 		return ports.RateLimitInfo{}, fmt.Errorf("invalid config type for FixedWindowLimiter, got %T", cfg)
 	}
 
-	res, err := f.score.Eval(ctx, f.luaScript, []string{key}, []interface{}{fixedCfg.Window, fixedCfg.Limit})
+	res, err := f.score.EvalSha(ctx, f.scriptSHA1, []string{key}, []interface{}{fixedCfg.Window, fixedCfg.Limit})
 	if err != nil {
 		return ports.RateLimitInfo{}, err
 	}

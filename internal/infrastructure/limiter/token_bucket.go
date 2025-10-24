@@ -10,19 +10,19 @@ import (
 )
 
 type TokenBucketLimiter struct {
-	score     ports.LimiterScore
-	luaScript string
+	score      ports.LimiterScore
+	scriptSHA1 string
 }
 
-func NewTokenBucketLimiter(score ports.LimiterScore, luaScript string) ports.RateLimiter {
+func NewTokenBucketLimiter(score ports.LimiterScore, scriptSHA1 string) ports.RateLimiter {
 	return &TokenBucketLimiter{
-		score:     score,
-		luaScript: luaScript,
+		score:      score,
+		scriptSHA1: scriptSHA1,
 	}
 }
 
-func TokenBucketLimiterFactory(score ports.LimiterScore, luaScript string) ports.RateLimiter {
-	return NewTokenBucketLimiter(score, luaScript)
+func TokenBucketLimiterFactory(score ports.LimiterScore, scriptSHA1 string) ports.RateLimiter {
+	return NewTokenBucketLimiter(score, scriptSHA1)
 }
 
 func (t *TokenBucketLimiter) Allow(ctx context.Context, key string, cfg config.AlgorithmConfig) (ports.RateLimitInfo, error) {
@@ -34,7 +34,7 @@ func (t *TokenBucketLimiter) Allow(ctx context.Context, key string, cfg config.A
 	now := time.Now().Unix()
 	tokensToConsume := 1
 
-	res, err := t.score.Eval(ctx, t.luaScript, []string{key}, []interface{}{
+	res, err := t.score.EvalSha(ctx, t.scriptSHA1, []string{key}, []interface{}{
 		tokenCfg.Capacity,
 		tokenCfg.RefillRate,
 		tokensToConsume,
