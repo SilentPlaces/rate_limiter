@@ -39,6 +39,7 @@ This rate limiter acts as a reverse proxy that enforces request rate limits befo
 - **Dynamic Configuration** - Hot-reload rules from Consul without restarts
 - **Distributed State** - Redis-backed rate limiting across multiple service instances
 - **Atomic Operations** - Lua scripts ensure race-condition-free updates
+- **Script Caching** - Redis EVALSHA with preloaded scripts for optimal performance
 - **Circuit Breaker** - Resilient Redis adapter prevents cascading failures
 - **IP Whitelisting** - Bypass rate limits for trusted IPs
 - **Route-Based Limiting** - Different limits for different API endpoints
@@ -131,12 +132,13 @@ The architecture follows **Clean Architecture** principles with strict dependenc
 
 ### How It Works
 
-1. **Frontend Nginx** receives client requests and adds `X-Rate-Limit-Rule` header
-2. **Rate Limiter Service** extracts client IP and route key (key is `X-Rate-Limit-Rule` header), checks against Consul config
-3. **Redis** stores rate limit state using atomic Lua scripts
-4. **Circuit Breaker** protects against Redis failures
-5. **Reverse Proxy** forwards allowed requests to backend services
-6. **Backend Nginx** processes the request and returns response
+1. **Startup** - Lua scripts are loaded into Redis via SCRIPT LOAD, compiled and cached with SHA1 hashes
+2. **Frontend Nginx** receives client requests and adds `X-Rate-Limit-Rule` header
+3. **Rate Limiter Service** extracts client IP and route key (key is `X-Rate-Limit-Rule` header), checks against Consul config
+4. **Redis** executes cached Lua scripts via EVALSHA for atomic, race-free rate limit checks
+5. **Circuit Breaker** protects against Redis failures
+6. **Reverse Proxy** forwards allowed requests to backend services
+7. **Backend Nginx** processes the request and returns response
 
 ## 📋 Prerequisites
 
@@ -413,22 +415,30 @@ import (
 )
 
 type SlidingWindowLimiter struct {
-    score     ports.LimiterScore
-    luaScript string
+    score      ports.LimiterScore
+    scriptSHA1 string
 }
 
-func SlidingWindowLimiterFactory(score ports.LimiterScore, luaScript string) ports.RateLimiter {
-    return &SlidingWindowLimiter{score: score, luaScript: luaScript}
+func SlidingWindowLimiterFactory(score ports.LimiterScore, scriptSHA1 string) ports.RateLimiter {
+    return &SlidingWindowLimiter{score: score, scriptSHA1: scriptSHA1}
 }
 
-func (s *SlidingWindowLimiter) Allow(ctx context.Context, key string, cfg config.AlgorithmConfig) (bool, error) {
+func (s *SlidingWindowLimiter) Allow(ctx context.Context, key string, cfg config.AlgorithmConfig) (ports.RateLimitInfo, error) {
     slidingCfg, ok := cfg.(config.SlidingWindowConfig)
     if !ok {
-        return false, fmt.Errorf("invalid config type")
+        return ports.RateLimitInfo{}, fmt.Errorf("invalid config type")
     }
     
-    // Implementation here using s.score.Eval() with Lua script
-    return true, nil
+    // Execute cached Lua script using SHA1 hash (loaded at startup)
+    res, err := s.score.EvalSha(ctx, s.scriptSHA1, []string{key}, []interface{}{
+        slidingCfg.WindowSize, slidingCfg.Limit,
+    })
+    if err != nil {
+        return ports.RateLimitInfo{}, err
+    }
+    
+    // Parse and return result
+    return parseResult(res, slidingCfg.Limit), nil
 }
 ```
 
@@ -470,14 +480,21 @@ luaFiles, err := loadLuaFiles([]string{
     fmt.Sprintf("scripts/lua/%s.lua", domainConfig.AlgorithmSlidingWindow),  // ← New!
 }, log)
 
-// Add to limiters map
+// Load scripts into Redis and get SHA1 hashes
+scriptSHA1s, err := loadScriptsIntoRedis(ctx, redisAdapter, luaFiles, log)
+
+// Create limiters with SHA1 hashes
 limiters := make(map[string]ports.RateLimiter)
-for algo, script := range map[string]string{
+for algo, scriptPath := range map[string]string{
     domainConfig.AlgorithmFixedWindow:   fmt.Sprintf("scripts/lua/%s.lua", domainConfig.AlgorithmFixedWindow),
     domainConfig.AlgorithmTokenBucket:   fmt.Sprintf("scripts/lua/%s.lua", domainConfig.AlgorithmTokenBucket),
     domainConfig.AlgorithmSlidingWindow: fmt.Sprintf("scripts/lua/%s.lua", domainConfig.AlgorithmSlidingWindow),  // ← New!
 } {
-    // registry.Create logic
+    limiterInstance, err := registry.Create(algo, redisAdapter, scriptSHA1s[scriptPath])
+    if err != nil {
+        return nil, fmt.Errorf("create limiter '%s': %w", algo, err)
+    }
+    limiters[algo] = limiterInstance
 }
 ```
 
@@ -497,7 +514,13 @@ KEYS rl:*
 # Check a specific key's value
 GET rl:fixed_window:root:192.168.1.100
 
-# Monitor real-time commands
+# View loaded Lua scripts (cached at startup)
+SCRIPT LIST
+
+# Check if scripts are loaded
+SCRIPT EXISTS <sha1_hash>
+
+# Monitor real-time commands (you'll see EVALSHA instead of EVAL)
 MONITOR
 ```
 
@@ -589,6 +612,7 @@ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
 - [x] Docker deployment
 - [x] Algorithm type constants for maintainability
 - [x] Sliding Window algorithm
+- [x] Redis script caching with EVALSHA for performance
 - [ ] Leaky Bucket algorithm
 - [ ] Prometheus metrics and monitoring
 - [ ] Comprehensive test suite (unit + integration)
