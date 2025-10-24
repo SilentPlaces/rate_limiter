@@ -86,7 +86,15 @@ func New(ctx context.Context, log ports.Logger, cfg *config.Config) (*Container,
 		_ = rc.Close()
 		return nil, fmt.Errorf("lua files: %w", err)
 	}
-	log.Info("Lua files loaded", ports.Field{Key: "count", Val: len(luaFiles)})
+	log.Info("Lua files loaded from disk", ports.Field{Key: "count", Val: len(luaFiles)})
+
+	// Load scripts into Redis and get SHA1 hashes
+	scriptSHA1s, err := loadScriptsIntoRedis(ctx, redisAdapter, luaFiles, log)
+	if err != nil {
+		_ = rc.Close()
+		return nil, fmt.Errorf("load scripts into redis: %w", err)
+	}
+	log.Info("Lua scripts loaded into Redis", ports.Field{Key: "count", Val: len(scriptSHA1s)})
 
 	// Register rate limiter algorithms
 	registry := domainLimiter.NewRegistry()
@@ -94,15 +102,15 @@ func New(ctx context.Context, log ports.Logger, cfg *config.Config) (*Container,
 	_ = registry.Register(domainConfig.AlgorithmTokenBucket, limiter.TokenBucketLimiterFactory)
 	_ = registry.Register(domainConfig.AlgorithmSlidingWindow, limiter.SlidingWindowLimiterFactory)
 
-	// Load limiter algorithms
+	// Load limiter algorithms with SHA1 hashes
 	limiters := make(map[string]ports.RateLimiter)
-	for algo, script := range map[string]string{
+	for algo, scriptPath := range map[string]string{
 		domainConfig.AlgorithmFixedWindow:   fmt.Sprintf("scripts/lua/%s.lua", domainConfig.AlgorithmFixedWindow),
 		domainConfig.AlgorithmTokenBucket:   fmt.Sprintf("scripts/lua/%s.lua", domainConfig.AlgorithmTokenBucket),
 		domainConfig.AlgorithmSlidingWindow: fmt.Sprintf("scripts/lua/%s.lua", domainConfig.AlgorithmSlidingWindow),
 	} {
-		// Create instance of each registered algorithm
-		limiterInstance, err := registry.Create(algo, redisAdapter, luaFiles[script])
+		// Create instance of each registered algorithm with SHA1 hash
+		limiterInstance, err := registry.Create(algo, redisAdapter, scriptSHA1s[scriptPath])
 		if err != nil {
 			_ = rc.Close()
 			return nil, fmt.Errorf("create limiter '%s': %w", algo, err)
@@ -175,4 +183,24 @@ func loadLuaFiles(paths []string, log ports.Logger) (map[string]string, error) {
 		contents[p] = string(data)
 	}
 	return contents, nil
+}
+
+func loadScriptsIntoRedis(ctx context.Context, redisAdapter ports.LimiterScore, luaScripts map[string]string, log ports.Logger) (map[string]string, error) {
+	scriptSHA1s := make(map[string]string)
+	for path, script := range luaScripts {
+		sha1, err := redisAdapter.ScriptLoad(ctx, script)
+		if err != nil {
+			log.Error("Failed to load script into Redis",
+				ports.Field{Key: "path", Val: path},
+				ports.Field{Key: "error", Val: err},
+			)
+			return nil, fmt.Errorf("load script %s: %w", path, err)
+		}
+		scriptSHA1s[path] = sha1
+		log.Info("Script loaded into Redis",
+			ports.Field{Key: "path", Val: path},
+			ports.Field{Key: "sha1", Val: sha1},
+		)
+	}
+	return scriptSHA1s, nil
 }
